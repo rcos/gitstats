@@ -1,6 +1,8 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Copyright (c) 2007-2014 Heikki Hokkanen <hoxu@users.sf.net> & others (see doc/AUTHOR)
 # GPLv2 / GPLv3
+from __future__ import print_function
+
 import datetime
 import getopt
 import glob
@@ -15,7 +17,7 @@ import time
 import zlib
 
 if sys.version_info < (2, 6):
-	print >> sys.stderr, "Python 2.6 or higher is required for gitstats"
+	print( "Python 2.6 or higher is required for gitstats", file=sys.stderr)
 	sys.exit(1)
 
 from multiprocessing import Pool
@@ -54,7 +56,7 @@ def getpipeoutput(cmds, quiet = False):
 	global exectime_external
 	start = time.time()
 	if not quiet and ON_LINUX and os.isatty(1):
-		print '>> ' + ' | '.join(cmds),
+		print( '>> ' + ' | '.join(cmds),)
 		sys.stdout.flush()
 	p = subprocess.Popen(cmds[0], stdout = subprocess.PIPE, shell = True)
 	processes=[p]
@@ -67,10 +69,10 @@ def getpipeoutput(cmds, quiet = False):
 	end = time.time()
 	if not quiet:
 		if ON_LINUX and os.isatty(1):
-			print '\r',
-		print '[%.5f] >> %s' % (end - start, ' | '.join(cmds))
+			print( '\r',)
+		print( '[%.5f] >> %s' % (end - start, ' | '.join(cmds)))
 	exectime_external += (end - start)
-	return output.rstrip('\n')
+	return output.decode('utf-8').rstrip('\n')
 
 def getlogrange(defaultrange = 'HEAD', end_only = True):
 	commit_range = getcommitrange(defaultrange, end_only)
@@ -207,7 +209,7 @@ class DataCollector:
 	def loadCache(self, cachefile):
 		if not os.path.exists(cachefile):
 			return
-		print 'Loading cache...'
+		print( 'Loading cache...')
 		f = open(cachefile, 'rb')
 		try:
 			self.cache = pickle.loads(zlib.decompress(f.read()))
@@ -269,7 +271,7 @@ class DataCollector:
 	##
 	# Save cacheable data
 	def saveCache(self, cachefile):
-		print 'Saving cache...'
+		print( 'Saving cache...')
 		tempfile = cachefile + '.tmp'
 		f = open(tempfile, 'wb')
 		#pickle.dump(self.cache, f)
@@ -310,7 +312,7 @@ class GitDataCollector(DataCollector):
 		# collect info on tags, starting from latest
 		tags_sorted_by_date_desc = map(lambda el : el[1], reversed(sorted(map(lambda el : (el[1]['date'], el[0]), self.tags.items()))))
 		prev = None
-		for tag in reversed(tags_sorted_by_date_desc):
+		for tag in reversed(sorted(tags_sorted_by_date_desc)):
 			cmd = 'git shortlog -s "%s"' % tag
 			if prev != None:
 				cmd += ' "^%s"' % prev
@@ -474,7 +476,7 @@ class GitDataCollector(DataCollector):
 			try:
 				self.files_by_stamp[int(stamp)] = int(files)
 			except ValueError:
-				print 'Warning: failed to parse line "%s"' % line
+				print( 'Warning: failed to parse line "%s"' % line)
 
 		# extensions and size of files
 		lines = getpipeoutput(['git ls-tree -r -l -z %s' % getcommitrange('HEAD', end_only = True)]).split('\000')
@@ -563,9 +565,9 @@ class GitDataCollector(DataCollector):
 
 						files, inserted, deleted = 0, 0, 0
 					except ValueError:
-						print 'Warning: unexpected line "%s"' % line
+						print( 'Warning: unexpected line "%s"' % line)
 				else:
-					print 'Warning: unexpected line "%s"' % line
+					print( 'Warning: unexpected line "%s"' % line)
 			else:
 				numbers = getstatsummarycounts(line)
 
@@ -577,7 +579,7 @@ class GitDataCollector(DataCollector):
 					self.total_lines_removed += deleted
 
 				else:
-					print 'Warning: failed to handle line "%s"' % line
+					print( 'Warning: failed to handle line "%s"' % line)
 					(files, inserted, deleted) = (0, 0, 0)
 				#self.changes_by_date[stamp] = { 'files': files, 'ins': inserted, 'del': deleted }
 		self.total_lines += total_lines
@@ -622,24 +624,24 @@ class GitDataCollector(DataCollector):
 						self.changes_by_date_by_author[stamp][author]['commits'] = self.authors[author]['commits']
 						files, inserted, deleted = 0, 0, 0
 					except ValueError:
-						print 'Warning: unexpected line "%s"' % line
+						print( 'Warning: unexpected line "%s"' % line)
 				else:
-					print 'Warning: unexpected line "%s"' % line
+					print( 'Warning: unexpected line "%s"' % line)
 			else:
 				numbers = getstatsummarycounts(line);
 
 				if len(numbers) == 3:
 					(files, inserted, deleted) = map(lambda el : int(el), numbers)
 				else:
-					print 'Warning: failed to handle line "%s"' % line
+					print( 'Warning: failed to handle line "%s"' % line)
 					(files, inserted, deleted) = (0, 0, 0)
 	
 	def refine(self):
 		# authors
 		# name -> {place_by_commits, commits_frac, date_first, date_last, timedelta}
 		self.authors_by_commits = getkeyssortedbyvaluekey(self.authors, 'commits')
-		self.authors_by_commits.reverse() # most first
-		for i, name in enumerate(self.authors_by_commits):
+		sorted_keys = sorted(self.authors_by_commits)
+		for i, name in enumerate(reversed(sorted_keys)):
 			self.authors[name]['place_by_commits'] = i + 1
 
 		for name in self.authors.keys():
@@ -668,7 +670,7 @@ class GitDataCollector(DataCollector):
 	
 	def getAuthors(self, limit = None):
 		res = getkeyssortedbyvaluekey(self.authors, 'commits')
-		res.reverse()
+		res = list(reversed(sorted(res)))
 		return res[:limit]
 	
 	def getCommitDeltaDays(self):
@@ -744,7 +746,7 @@ class HTMLReportCreator(ReportCreator):
 					shutil.copyfile(src, path + '/' + file)
 					break
 			else:
-				print 'Warning: "%s" not found, so not copied (searched: %s)' % (file, basedirs)
+				print( 'Warning: "%s" not found, so not copied (searched: %s)' % (file, basedirs))
 
 		f = open(path + "/index.html", 'w')
 		format = '%Y-%m-%d %H:%M:%S'
@@ -1023,9 +1025,9 @@ class HTMLReportCreator(ReportCreator):
 		for yymm in reversed(sorted(data.author_of_month.keys())):
 			authordict = data.author_of_month[yymm]
 			authors = getkeyssortedbyvalues(authordict)
-			authors.reverse()
-			commits = data.author_of_month[yymm][authors[0]]
-			next = ', '.join(authors[1:conf['authors_top']+1])
+			authors = list(reversed(sorted(authors)))
+			commits = data.author_of_month[yymm][list(authors)[0]]
+			next = ', '.join(list(authors)[1:conf['authors_top']+1])
 			f.write('<tr><td>%s</td><td>%s</td><td>%d (%.2f%% of %d)</td><td>%s</td><td>%d</td></tr>' % (yymm, authors[0], commits, (100.0 * commits) / data.commits_by_month[yymm], data.commits_by_month[yymm], next, len(authors)))
 
 		f.write('</table>')
@@ -1035,7 +1037,7 @@ class HTMLReportCreator(ReportCreator):
 		for yy in reversed(sorted(data.author_of_year.keys())):
 			authordict = data.author_of_year[yy]
 			authors = getkeyssortedbyvalues(authordict)
-			authors.reverse()
+			authors = list(reversed(sorted(authors)))
 			commits = data.author_of_year[yy][authors[0]]
 			next = ', '.join(authors[1:conf['authors_top']+1])
 			f.write('<tr><td>%s</td><td>%s</td><td>%d (%.2f%% of %d)</td><td>%s</td><td>%d</td></tr>' % (yy, authors[0], commits, (100.0 * commits) / data.commits_by_year[yy], data.commits_by_year[yy], next, len(authors)))
@@ -1044,7 +1046,7 @@ class HTMLReportCreator(ReportCreator):
 		# Domains
 		f.write(html_header(2, 'Commits by Domains'))
 		domains_by_commits = getkeyssortedbyvaluekey(data.domains, 'commits')
-		domains_by_commits.reverse() # most first
+		domains_by_commits = list(reversed(sorted(domains_by_commits)))
 		f.write('<div class="vtable"><table>')
 		f.write('<tr><th>Domains</th><th>Total (%)</th></tr>')
 		fp = open(path + '/domains.dat', 'w')
@@ -1157,7 +1159,7 @@ class HTMLReportCreator(ReportCreator):
 		for tag in tags_sorted_by_date_desc:
 			authorinfo = []
 			self.authors_by_commits = getkeyssortedbyvalues(data.tags[tag]['authors'])
-			for i in reversed(self.authors_by_commits):
+			for i in reversed(sorted(self.authors_by_commits)):
 				authorinfo.append('%s (%d)' % (i, data.tags[tag]['authors'][i]))
 			f.write('<tr><td>%s</td><td>%s</td><td>%d</td><td>%s</td></tr>' % (tag, data.tags[tag]['date'], data.tags[tag]['commits'], ', '.join(authorinfo)))
 		f.write('</table>')
@@ -1168,7 +1170,7 @@ class HTMLReportCreator(ReportCreator):
 		self.createGraphs(path)
 	
 	def createGraphs(self, path):
-		print 'Generating graphs...'
+		print( 'Generating graphs...')
 
 		# hour of day
 		f = open(path + '/hour_of_day.plot', 'w')
@@ -1370,7 +1372,7 @@ plot """
 		for f in files:
 			out = getpipeoutput([gnuplot_cmd + ' "%s"' % f])
 			if len(out) > 0:
-				print out
+				print( out)
 
 	def printHeader(self, f, title = ''):
 		f.write(
@@ -1401,7 +1403,7 @@ plot """
 """)
 		
 def usage():
-	print """
+	print( """
 Usage: gitstats [options] <gitpath..> <outputpath>
 
 Options:
@@ -1411,7 +1413,7 @@ Default config values:
 %s
 
 Please see the manual page for more details.
-""" % conf
+""" % conf)
 
 
 class GitStats:
@@ -1442,48 +1444,48 @@ class GitStats:
 		except OSError:
 			pass
 		if not os.path.isdir(outputpath):
-			print 'FATAL: Output path is not a directory or does not exist'
+			print( 'FATAL: Output path is not a directory or does not exist')
 			sys.exit(1)
 
 		if not getgnuplotversion():
-			print 'gnuplot not found'
+			print( 'gnuplot not found')
 			sys.exit(1)
 
-		print 'Output path: %s' % outputpath
+		print( 'Output path: %s' % outputpath)
 		cachefile = os.path.join(outputpath, 'gitstats.cache')
 
 		data = GitDataCollector()
 		data.loadCache(cachefile)
 
 		for gitpath in args[0:-1]:
-			print 'Git path: %s' % gitpath
+			print( 'Git path: %s' % gitpath)
 
 			prevdir = os.getcwd()
 			os.chdir(gitpath)
 
-			print 'Collecting data...'
+			print( 'Collecting data...')
 			data.collect(gitpath)
 
 			os.chdir(prevdir)
 
-		print 'Refining data...'
+		print( 'Refining data...')
 		data.saveCache(cachefile)
 		data.refine()
 
 		os.chdir(rundir)
 
-		print 'Generating report...'
+		print( 'Generating report...')
 		report = HTMLReportCreator()
 		report.create(data, outputpath)
 
 		time_end = time.time()
 		exectime_internal = time_end - time_start
-		print 'Execution time %.5f secs, %.5f secs (%.2f %%) in external commands)' % (exectime_internal, exectime_external, (100.0 * exectime_external) / exectime_internal)
+		print( 'Execution time %.5f secs, %.5f secs (%.2f %%) in external commands)' % (exectime_internal, exectime_external, (100.0 * exectime_external) / exectime_internal))
 		if sys.stdin.isatty():
-			print 'You may now run:'
-			print
-			print '   sensible-browser \'%s\'' % os.path.join(outputpath, 'index.html').replace("'", "'\\''")
-			print
+			print( 'You may now run:')
+			print()
+			print( '   sensible-browser \'%s\'' % os.path.join(outputpath, 'index.html').replace("'", "'\\''"))
+			print()
 
 if __name__=='__main__':
 	g = GitStats()
